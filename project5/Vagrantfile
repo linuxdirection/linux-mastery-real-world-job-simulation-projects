@@ -1,0 +1,38 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  # Define your VM box
+  config.vm.box = "generic/ubuntu2204"
+
+  # VM configuration
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "2048"
+    vb.cpus = 2
+
+    # Disk management
+    disk_dir = File.join(Dir.pwd, 'disks')
+    Dir.mkdir(disk_dir) unless Dir.exists?(disk_dir)
+    
+    # Primary disk (OS and NFS software)
+    unless File.exist?(File.join(disk_dir, "disk1.vdi"))
+      vb.customize ['createhd', '--filename', File.join(disk_dir, "disk1.vdi"), '--size', 10 * 1024] # Size in MB
+    end
+
+    # Attaching primary disk to SATA controller
+    vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', 1, '--device', 0, '--type', 'hdd', '--medium', File.join(disk_dir, "disk1.vdi")]
+
+    # Additional disks for NFS, LVM, and RAID
+    (2..6).each do |disk_number|
+      disk_path = File.join(disk_dir, "disk#{disk_number}.vdi")
+      unless File.exist?(disk_path)
+        vb.customize ['createhd', '--filename', disk_path, '--size', 5 * 1024] # Size in MB
+      end
+      vb.customize ['storageattach', :id, '--storagectl', 'SATA Controller', '--port', disk_number, '--device', 0, '--type', 'hdd', '--medium', disk_path]
+    end
+  end
+
+  # Network configuration with a static IP
+  config.vm.network "private_network", ip: "192.168.56.111"
